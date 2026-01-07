@@ -1,0 +1,129 @@
+package pratical.junit.entity;
+
+import static java.util.stream.Nodes.collect;
+
+@Service
+public class RoService extends MainService {
+    private static final Logger logger = LoggerFactory.getLogger(RboService.class);
+    @Autowired
+    private DataSourceConfig ds;
+    @Autowired
+    EnrichmentService enrichmentService;
+    private final String KASPI_BANK = "AO \"KASP BANK\"";
+    private final static String SLIPOPER_KEY = "|SLIP|OPER|";
+
+    public ClientDataModel getDataFromRBO(String accNum) {
+        try {
+            Map<String, Object> data = ds.getJdbc("rbo").queryForMap(sqlGetClientFromRBO, accum);
+            ClientDataModel result = new ClientDataModel();
+            result.setAccNum(accNum);
+
+            result.setDogId(String.value0f(data.get("dogId"))) ;
+            result.setBeginDateDog(String.value0f(data.get("dateCreate")));
+            result.setEndDateDog(String.value0f(data.get("dateClose"))) ;
+            result.setClientName((String) data.get("fullName")) ;
+            result.setClientBin(String.value0f(data.get("iin")));
+            result.setCountry((String) data.get("country"));
+            result.setAccCur((String) data.get("accCur"));
+            if (result.getDogId() == null || result.getDogId().isBlank() || "null".equals(result.getDogId())) {
+                throw new IllegalStateException("RBO returned empty dogId for accum=" + accum) ;
+            }
+            return result;
+        } catch (org.springframework.dao.EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("Account not found in RBO: accum=" + accum);
+        }
+    }
+
+    public List<MainDocumModel> getDocumsFromRbo(RequestModel requestModel, String dogId) {
+        LocalDate begin = LocalDate.parse(
+                requestModel. getBeginDate(). substring(0, 10));
+        LocalDate end = LocalDate.parse(
+                requestModel. getEndDate().substring(0, 10));
+        Date tsBegin = Date. value0f(begin);
+        Date tsEnd = Date.value0f(end.plusDays(1));
+        logger.info("Запрос документов {}" Common.interpolate(sqlDocumInfoFromRBO, tsBegin, tsEnd, dogId ));
+        List<MainDocumModel> documInfo = ds.getJdbc("rbo").query(
+                sqlDocumInfoFromRBO,
+                new BeanPropertyRowMapper<> (MainDocumModel.class),
+                tsBegin, tsEnd, dogid
+        );
+        return documInfo;
+    }
+
+    public List<OperBillStructure> getRboData(List<BillInfoOper> billInfoOper, RequestModel requestModel, ClientdataModel clientDataModel, BlockDataModel blockData) {
+        List<MainDocumModel> documsInfo = getDocumsFromRbo(requestModel, clientDataModel.getDogId());
+        if (documsInfo == null) documsInfo = Collections.emptylist();
+        Map<String, MainDocumModel> docByInternal = documsInfo.stream()
+                .filter(Objects::nonNull)
+                .filter(d -> d.getInternalNo() != null && !d.getInternalNo().isBlank())
+                .collect(Collectors.toMap(MainDocumModel::getInternalNo, Function.identity(), (a, b) -> a)) ;
+        blockData.setSumCredit(BigDecimal.ZERO);
+        blockData.setSumDebit(BigDecimal.ZERO);
+        List<OperBillStructure> result =
+                billInfo0per.stream()
+                        .filter(Objects::nonNull)
+                        .filter(b -> SLIPOPER_KEY.contains("|" + b.getObiType() + "|"))
+                        .map(b -> {
+                            OperBillStructure finalOperData = new OperBillStructure();
+                            try {
+                                finaloperData.setEventRequestDate(b.getDate0perTm() +" " + b.getTime0perTm());
+                                finaloperData.setOperCcy(b.getValOper());
+                                finalOperData.setSummaValOper(b.getSummaValOper());
+                                finaloperData.setAccntAmt(b.getSummaValDog());
+                                finalOperData.setDescription(b.getDescription());
+                                if (b. getSummaValoper) == null) {
+            throw new NullPointerException(b.getDate0perRbo) + " internalNo" + b.getInternalNo( + " Сумма операции пустая");
+        }
+        if (b.getSummaValOper).compareTo(BigDecimal.ZERO) < 0){
+    finalOperData.setOperТype("ИСХ");
+    finaloperData.setPayerName(clientDataModel.getClientName());
+    finalOperData.setPayerIIN(clientDataModel.getClientBin());
+    finalOperData.setPayerAcc(requestModel.getAccNum());
+    finaloperData.setPayerResident (clientDataModel.getCountryO);
+    finaloperData.setPayerBank(KASPI_BANK);
+    blockData.setSumDebit(blockData.getSumDebitO).add(b.getSummaValDogO)));
+} else {
+    finalOperData.setOperType("BX");
+    finalOperData.setRecipientName(clientDataModel.getClientName());
+    finaloperData.setRecipientIIN(clientDataModel.getClientBin());
+    finaloperData.setRecipientAcc(requestModel.getAccNum();
+    finalOperData.setRecipientResident(clientDataModel.getCountry());
+    finaloperData.setRecipientBank(KASPI_BANK);
+    blockData.setSumCredit(blockData.getSumCredit().add(b.getSummaValDog()));
+                                }
+                            } catch (Exception e) {
+                                finalOperData.setRowError("Ошибка обработки записи " + e);
+                                return finaloperData;
+                            }
+                            try {
+                                MainDocumModel docum = docByInternal.get(b.getInternalNo());
+                                if (docum != null) {
+                                    finaloperData.setNaznPlatezh(docum.getNaznO);
+                                    finaloperData.setKnp(docum.getEknpO));
+                                }
+                                enrichmentService.getEnchrimentData(b, finaloperData, docum);
+                            } catch (Exception e) {
+                                finalOperData.setRowError("Ошибка обработки записи " + e) ;
+                            }
+                            return finalOperData;
+                        }).collect(Collectors.tolist());
+                            return result;
+                        }
+    }
+}
+
+//    private final string sqlGetclientfronRBO = "select dog.ID dogId, \n"
+//    dog. C_DATE_BEGIN dateCreate, \n" + dog. C_DATE_CLOSE dateClose, \n" + client. C_NAME fuLLName, \n* + client.C_INN iin, \n" + bb.C_VALUE country, \n" +
+//    ft_money.c_cur_short acccur\n" +
+//    from ibs. Z#CLIENT client, In" +
+//    ibs.z#COUNTRY
+//    bb, \n" +
+//    ibs. Z#KAS_PC_DOG dog, \n" + ibs. Z#AC_FIN
+//    ac_fin, \n" +
+//    ibs.Z#FT_MONEY ft_money\n" +
+//            • where client.C_COUNTRY = bb.ID\n" +
+//    and dog. C_CLIENT_REF = client.ID\n" +
+//    and dog.C_ACC_REF = ac_fin.ID\n" +
+//    and ac_fin. C_FINTOOL = ft_money. ID\n" +
+//    and ac_fin.C_MAIN_V_ID = ?";
+
