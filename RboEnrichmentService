@@ -1,0 +1,111 @@
+package pratical.junit.entity;
+
+
+@Service
+public class RboEnchrimentService extends MainService {
+    private final String KASPI_BANK = "AO \"KASPI BANK\"";
+    private static final String COL_FULL_NAME = "fullName";
+    private static final String COL_IIN = "iin";
+    private static final String COL_COUNTRY = "country";
+    private static final String COL_ACC_NUM = "accum";
+    private static final String COL_BANK = "bank";
+    private static final String NO_DATA_FOUND = " Селект не вернул результатов: ";
+
+    private static final String TOO_MANY_ROWS = " Несколько записей: ";
+    private final static String FINAL_ERROR = "Ошибка при попытке обработать запрос: ";
+
+    private static final String NO_DATA_FOUND = " Селект не вернул результатов: ";
+    private static final String TOO_MANY_ROWS = " Несколько записей: ";
+    private final static String FINAL_ERROR = "Ошибка при попытке обработать запрос: ";
+    private final static String FATAL_ERROR = " FATAL_ERROR: ";
+    @Autowired
+    private DataSourceConfig ds;
+    public void getInfoRbo (OperBillStructure obs, String sql, boolean clientBySelf, boolean defaultKaspiBank, Object... args) {
+        if (obs.getRowError != null) return;
+        try {
+            JdbcTemplate jdbc = ds.getJdbc("rbo");
+            EnchrimentModel row;
+            try {
+                RowMapper<EnchrimentModel> mapper = (rs, rn) -> {
+                    EnchrimentModel r = new EnchrimentModel();
+                    r.setName(rs.getString(COL_FULL_NAME));
+                    r.setlin(rs.getString(COL_IIN));
+                    r.setCountry(rs.getString(COL_COUNTRY));
+                    r.setAccNum(rs.getString(COL_ACC_NUM));
+                    r.setBank(defaultKaspiBank ? KASPI_BANK : rs.getString(COL_BANK));
+                    return r;
+                };
+                row = (args == null || args.length == 0)
+                        ? jdbc.queryForobject(sql, mapper)
+                        : jdbc.queryForobject(sql, mapper, args);
+            } catch (EmptyResultDataAccessException e) {
+                obs.setRowError(getClass().getSimpleName()
+                        + NO_DATA_FOUND+ Common.interpolate(sql, args));
+                return;
+            } catch (IncorrectResultSizeDataAccessException e) {
+                obs. setRowError (getClass().getSimpleName()
+                        + TOO_MANY_ROWS + Common.interpolate(sql, args));
+                return;
+            } catch (DataAccessException e) {
+                obs.setRowError (getClass() .getSimpleName() + " " + e);
+                return;
+            }
+
+            if (row == null) return;
+            boolean isIn = "BX".equals(obs.getOperType());
+            if (isIn) obs.setPayerAcc(row.getAccNum());
+            else obs. setRecipientAcc(row.getAccNum());
+            if (clientBySelf) { // если clientBySelf = true, значит клиент переводит между своими счетами.
+                if (isIn) {
+                    obs.setPayerName(obs.getRecipientName());
+                    obs.setPayerIIN(obs.getRecipientIINO);
+                    obs.setPayerBank(obs.getRecipientBank());
+                    obs.setPayerResident(obs.getRecipientResidentO);
+                } else {
+                    obs.setRecipientName(obs.getPayerName());
+                    obs.setRecipientIIN(obs.getPayerIINO);
+                    obs.setRecipientBank(obs.getPayerBank());
+                    obs.setRecipientResident(obs.getPayerResident());
+                }
+            } else {
+                if (isIn) {
+                    obs.setPayerName(row.getName()); obs.setPayerIIN(row.getlin());
+                    obs.setPayerBank(row.getBank());
+                    obs.setPayerResident(row.getCountry());
+                } else {
+                    obs.setRecipientName(row.getName()); obs.setRecipientIIN(row.getlin());
+                    obs.setRecipientBank(row.getBank()); obs.setRecipientResident(row.getCountry());
+                }
+            }
+        } catch (Exception e) {
+            obs.setRowError(FINAL_ERROR
+                    + Common.interpolate(sql, args) + FATAL_ERROR + e);
+        }
+    }
+    private static final String ROW_ERROR= ". В деталях недостаточно данных для получения информации в РБО: нужны заполненные данные: ";
+    public String missingParamsError (String...args) { return ROW_ERROR + String.join(", ",args);
+    }
+}
+
+
+public static String interpolate(String sql, Object... params) {
+    StringBuilder out = new StringBuilder(sql.length() + 32);
+    int idx = 0;
+    for (int i = 0; i < sql.length(); i++) {
+        char ch = sql. charAt(1);
+        if (ch == '?' && idx < params.length) {
+        out. append (toSqlLiteral (params[idx++]));
+    } else {
+        out.append(ch);
+        }
+    }
+    return out.tostring();
+}
+
+
+
+
+
+
+
+
