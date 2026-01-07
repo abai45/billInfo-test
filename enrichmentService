@@ -1,0 +1,180 @@
+package pratical.junit.entity;
+
+@Service
+@Component
+public class EnrichmentService extends MainService {
+    static final List<BillInfoRules> alloperCodeCond = new ArrayList<>();
+    static final List<RboBillInfoRules> rboRules = new ArrayList<>();
+    private final String KASPI_BANK = "AO \"KASPI BANK\"";
+    private final ObjectMapper objectMapper;
+    @Autowired
+    P2P_TRANSFER p2P_transfer;
+    @Autowired
+    AVTO_CRED_PAY avtoCredPay;
+    @Autowired
+    AUTO_CRED_BUY autoCredBuy;
+    @Autowired
+    RETURN_MONEY_FROM_CRED return_money_from_cred;
+    @Autowired
+    SWIFT_INFO swiftInfo;
+    @Autowired
+    ART_IDM art_idm;|
+    @Autowired
+    CREDITS_PAY creditsPAY;
+    @Autowired
+    MERCHANT_INFO merchantInfo;
+    @Autowired
+    MARKET_PAY marketPay;
+    @Autowired
+    INFO_FROM_DOCUM_IN infoFromDocumIn;
+    @Autowired
+    ZP_INFO zpInfo;
+
+    @Autowired 2 usages private DataSourceConfig ds;
+    static private final int defDbNum = 0; no usages
+    static ExpressionParser parser = new SpelExpressionParser; no usages
+    StandardEvaluationContext context = new StandardEvaluationContext(new Goldoper); no usages
+    public EnrichmentService (ObjectMapper objectMapper) { this objectMapper = objectMapper; F
+        @PostConstruct nousages - Дьяченко Олег Андреевич +1
+        public void init( throws JsonProcessingException {
+            String selbIruledesc = "select * from gold.gold bill_info_rules order by cache_order";
+            ds. getGoldBackJdbcListRO.getFirst.query(selBIRUleDesc, ResultSet rs -> {
+                BillInfoRules row = new BillInfoRulesO;
+                row.setId(rs.getString("id"));
+                row.setRuleCode(rs.getString("rule_code"));
+                row.setRuleCondition(rs.getString("rule_condition"));
+                row.setOperGroup(rs.getString("oper_group"));
+                row.setDescTextRu(rs.getString("description_text_ru"));
+                row.setDescTextKz(rs.getString("description_text_kz"));
+                row.setDescTextEn(rs.getString("description_text_en"));
+                row.setAccSumRule(rs.getString("acc_sum_rule"));
+                row.setAccCurRule(rs.getString("acc_cur_rule"));
+                row.setTranSumRule(rs.getString("tran_sum_rule"));
+                row.setTranCurRule(rs.getString("tran_cur_rule"));
+                row.setIsReverse(rs.getString("is_reverse"));
+                row.setRulesForGov(rs.getString("rules_for_gov"));
+                alloperCodeCond.add(row);
+            });
+            // Собираев кэш условия для РБО
+            String selRBoRuledesc = "select * from gold. gold_rbo_bill_info_rules order by order_no";
+            ds.getGoldBackJdbcListRO.getFirst.query(selRBORuledesc, rs -> {
+                RboBillInoRules row = new RboBillInfoRules();
+                row.setDescTextEn(rs.getString("description_text_en"));
+                row.setDescTextKz(rs.getString( "description_text_kz"));
+                row.setDescTextRu(rs.getString( "description_text_ru"));
+                row.setId(rs.getString( "id"));
+                row.setRuleCode(rs.getString( "rule_code"));
+                row. setRuleCondition(rs.getString( "rule_condition"));
+                row.setOperGroup(rs.getString( "open-group"));
+                row.setRulesForGov(rs.getString( "rules_for_gov"));
+                rboRules.add(row);
+            });
+        }
+
+        public String getRulesfromKgb(String vidoper) {
+            String kgbRules = alloperCodeCond.stream()
+                    .filter(Objects::nonNull)
+                    .filter(d -> d.getRuleCode() != null
+                    && !d.getRuleCode().isBlank()
+                    && d.getRuleCode().equals(vidoper))
+                    .map(BillInfoRules::getRulesForGov)
+                    .filter(Objects::nonNull)
+                    .findFirst()
+                    .orElse (null);
+            if(kgbRules == null || kgbRules.isBlank()) {
+                kgbRules = rboRules.stream()
+                        .filter(Objects::nonNull)
+                        .filter( RboBillinfoRules d -> d. getRuleCode() != null
+                        && !d.getRuleCode().isBlank()
+                        && d.getRuleCode().equals(vidoper))
+                        .map(RboBillInfoRules:: getRulesForGov)
+                        .filter(Objects::nonNull)
+                        .findFirst()
+                        .orElse(null);
+            }
+            return kgbRules;
+        }
+        public void getEnchnimentData(BillInfoOper billInfooper, OperBillStructure operBillStructure, MainDocumModel docum) throws Exception {
+        String rules = getRulesfromkgb(billInfo0per.getVidOperCode());
+        if ("Зачисление на Kaspigold переводом из другого банка".equals(billInfo0per getDescription())
+        {
+            logger.info("DSD");
+        }
+        if (rules!= null & !rules.isEmpty()) {
+            JsonNode ruleJson = objectMapper.readTree(rules);
+            JonNode rboRules = ruleJson.path("rboRules");
+            String rborule = rboRules.asText(null);
+            if (rborule != null && !rborule.isBlank()) {
+                Map<String, Object> fulldetailsJson = billInfoOper.getFullDetailsJson();
+                JsonNode details = objectMapper.valueToTree(fullDetailsJson);
+                String tranTypeEx = details.path("TRAN_TYPE_EX").asText(null);
+                if (tranTypeEx != null && "ZP_EMPL".equals(tranTypeEx)) {
+                    rborule = "ZP_INFO";
+                    ("P2P_TRANSFER".equals(rborule)) {
+                        p2P_transfer.getDetailsofTransfer(details, operBillStructure);
+                    } else if ("RETURN_MONEY_FROM_CRED".equals(rborule)) {
+                        return_money_from_cred.getReturnDetailsFromRBO(details, operBillStructure);
+                    } else if ("ART_IDM".equals(rborule)) {
+                        art_idm.getDetailsFromART(details, operBillstructure);
+                    } else if ("CREDITS_PAY".equals(rborule)) {
+                        creditsPAY.getRedDetailsFromRBO(details, operBillStructure);
+                    } else if (("AVTO_CRED_PAY".equals(rborule))) {
+                        avtoCredPay - getAvtoCreditFromRBO(details, operBillstructure);
+                    } else if (("AVTO-CRED_BUY".equals(rborule))) {
+                        autoCredBuy.getDetailsForBuyCar(details, operBillStructure);
+                    } else if (("MARKET_KZ_PAY".equals(rborule))) {
+                        marketPay.getDetailsofMarketTransfer(details, operBillstructure);
+                    } else if (("MERCHANT_INFO".equals(rborule))) {
+                        merchantInfo.getMerchantDetails(details, billInfo0per.getMerchant(), operBillstructure);
+                    } else if (("SWIFT_INFO".equals(rborule))) {
+                        swiftInfo.getSwiftDetails(operBillStructure.getRecipientAcc(), operBillStructure.getEventRequestDate(), operBillstructure, details);
+                    } else if (("P_INFO".equals(rborule))) {
+                        zpInfo.getZpInfo(details, operBillstructure);
+                    } else if (("INFO_FROM_DOCUM_IN".equals(rborule))) {
+                        infoFromDocumIn.getInfoFromDocumIn(operBillStructure, docum);
+                    } else if (("INFO_FROM_DOCUM_OUT".equals(rborule))) {
+                        infoFromDocumout.getInfoFromDocumOut(operBillStructure, docum);
+                    } else if (("INFO_FROM_DOCUM_ONLY".equals(rborule))) {
+                        infoFromDocumonly.getInfoFromDocumOnLy(operBillStructure, docum);
+                    } else if (("MERCHANT_INFO_BIN".equals(rborule))) {
+                        merchantInfoBin.getDetailsByBin(operBillStructure);
+                    } else if (("CLIENT_BY_SELF".equals(rborule))) {
+                        clientbySelf.getClientFromHimSelf(operBillStructure);
+                    } else if (("CLIENT_BY_SELF".equals(rborule))) {
+                        clientbyself.getClientFromHimSelf(operBillStructure);
+                    } else if (("TRANSE_OTHER_BANK".equals(rborule))) {
+                        transfotherBank.getInfo0fTransferFromOtherBank(operBillStructure, docum);
+                    } else if (("KG_TO_ELCARD".equals(rborule))) {
+                        kgToElcard.getInfoToElcard(details, operBillstructure);
+                    }
+                }
+            }
+        }
+
+
+        }
+    }
+}
+            private final String ART_ID = "ART_ID";
+
+            private final String ART_IDM = "ART_IDM";
+
+            private final String GUID_ID = "GUID_ID";
+            public void getRedDetailsFromBO (JsonNode details, OperBillStructure operBillStructure) {
+                EnchrimentModel row = null;
+                String externalId = details.path(ART_IDM).asText(null);
+                if externalId == null){
+                    externalld = details.path(ART_ID).asText(null); }
+                if (externalId == null){
+                    externalId = details.path(GUID_ID ).asText(null); }
+                String sql;
+                if ("BX".equals(operBillStructure.getOperType()) {
+                    sql = sqlGetSender;
+                } else sql = sqlGetRecipient;
+                if (externalld != null && !externalId.isBlank() && !externalId. equals("null")) {
+                    rboEnchrimentService.getInfoRbo(operBillStructure, sql, true, true, externalld);
+                }
+                else {
+                    operBillstructure.setRowError(getClass). getSimpleName() +
+                            rboEnchrimentService.missingParamsError (ART_IDM, ART_ID, GUID_ID));
+                }
